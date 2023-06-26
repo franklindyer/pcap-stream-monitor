@@ -1,4 +1,5 @@
 #include "resources/ansi_codes.h"
+#include "resources/protocols.h"
 
 struct flow_id {
   struct timeval start;
@@ -76,41 +77,40 @@ struct flow_id packet_to_flow_id(struct sniff_ip* ip_info) {
 #define PRINT_FLOW_PORTS 48
 #define PRINT_FLOW_COUNT 64
 
-void print_flows(struct flow_node* flowlist, int options) {
+void log_flows(FILE* fd, struct flow_node* flowlist, int options) {
   int num_flows = 0;
   char ipaddr_str[INET_ADDR_BUFLEN];
 
-  if (options & PRINT_FLOW_SRCIP) printf("%-16s  ", "Source IP");
-  if (options & PRINT_FLOW_DSTIP) printf("%-16s  ", "Dest IP");
-  if (options & PRINT_FLOW_PROT) printf("%-6s  ", "Protocol");
-  if (options & PRINT_FLOW_COUNT) printf("%-7s  ", "# Pkts");
-  fprintf(stdout, "\n");
-  
+  if (fseek(fd, 0, SEEK_SET) < 0) perror("Could not move to beginning of logfile.");
+  if (options & PRINT_FLOW_SRCIP) fprintf(fd, "%-16s  ", "Source IP");
+  if (options & PRINT_FLOW_DSTIP) fprintf(fd, "%-16s  ", "Dest IP");
+  if (options & PRINT_FLOW_PROT) fprintf(fd, "%-8s  ", "Protocol");
+  if (options & PRINT_FLOW_COUNT) fprintf(fd, "%-7s  ", "# Pkts");
+  fprintf(fd, "\n");
+
   while (flowlist != NULL) {
     num_flows++;
     if (options & PRINT_FLOW_SRCIP) {
       inet_ntop(AF_INET, &(flowlist->id.ip_src), ipaddr_str, INET_ADDR_BUFLEN);
-      printf("%-16s  ", ipaddr_str);
+      fprintf(fd, "%-16s  ", ipaddr_str);
     }
 
     if (options & PRINT_FLOW_DSTIP) {
       inet_ntop(AF_INET, &(flowlist->id.ip_dst), ipaddr_str, INET_ADDR_BUFLEN);
-      printf("%-16s  ", ipaddr_str);
+      fprintf(fd, "%-16s  ", ipaddr_str);
     }
 
     if (options & PRINT_FLOW_PROT) {
-      printf("%-6d  ", flowlist->id.ip_prot);
+      fprintf(fd, "%-8s  ", getIPProtoName(flowlist->id.ip_prot));
     }
 
     if (options & PRINT_FLOW_COUNT) {
-      printf("%-7ld  ", flowlist->data.count);
+      fprintf(fd, "%-7ld  ", flowlist->data.count);
     }
 
+    fprintf(fd, "\n");
     flowlist = flowlist->next;
-    printf("%s\n", ERASE_TO_END);
   }
 
-  if (options & OVERWRITE_FLOWS) {
-    printf("%s", CURSOR_BEGIN);
-  }
 }
+

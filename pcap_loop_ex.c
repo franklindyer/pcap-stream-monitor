@@ -30,7 +30,7 @@ void my_callback(u_char *useless,
   ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
   struct flow_id id = packet_to_flow_id(ip);
   struct flow_node *node = flow_get(&flowlist, id);
-  print_flows(flowlist, OVERWRITE_FLOWS | PRINT_FLOW_IPS | PRINT_FLOW_PROT | PRINT_FLOW_COUNT);
+  log_flows(stdout, flowlist, OVERWRITE_FLOWS | PRINT_FLOW_IPS | PRINT_FLOW_PROT | PRINT_FLOW_COUNT);
 
   count++;
 }
@@ -56,7 +56,7 @@ int main() {
 
   pcap_lookupnet(dev, &netp, &maskp, errbuf);
 
-  descr = pcap_open_live(dev, BUFSIZ, 1, -1, errbuf);
+  descr = pcap_open_live(dev, BUFSIZ, 1, 100, errbuf);
   if (descr == NULL) {
     printf("pcap_open_live(): %s\n", errbuf);
     exit(1);
