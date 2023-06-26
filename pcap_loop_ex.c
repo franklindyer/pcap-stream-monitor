@@ -10,7 +10,7 @@
 #define SIZE_ETHERNET 14  
 #define INET_ADDR_BUFLEN 16 
 
-#include "pcap_structs.h"
+#include "resources/pcap_structs.h"
 #include "pcap_flow.c"
 
 void my_callback(u_char *useless,

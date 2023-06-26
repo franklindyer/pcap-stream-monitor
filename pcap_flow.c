@@ -1,3 +1,5 @@
+#include "resources/ansi_codes.h"
+
 struct flow_id {
   struct timeval start;
   struct timeval recent;
@@ -105,13 +107,10 @@ void print_flows(struct flow_node* flowlist, int options) {
     }
 
     flowlist = flowlist->next;
-    fprintf(stdout, "\n");
+    printf("%s\n", ERASE_TO_END);
   }
 
   if (options & OVERWRITE_FLOWS) {
-    int i;
-    for (i = 0; i < num_flows + 1; i++) {
-      fprintf(stdout, "\033[F");
-    }
+    printf("%s", CURSOR_BEGIN);
   }
 }
