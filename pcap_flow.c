@@ -1,5 +1,6 @@
 #include "resources/ansi_codes.h"
 #include "resources/protocols.h"
+#include "resources/iglesias_features.h"
 
 struct flow_id {
   struct timeval start;
@@ -18,6 +19,7 @@ struct flow_data {
 };
 
 struct flow_node {
+  features* to_track;
   struct flow_id id;
   struct flow_data data;
   struct flow_node* next;
@@ -57,6 +59,10 @@ struct flow_node* flow_get(struct flow_node** flowlist, struct flow_id id) {
     flow_loc->data.count += 1;
   }
   return flow_loc;
+}
+
+void update_flow_data(struct flow_node* flownode, struct sniff_ip* ip) {
+  return;
 }
 
 struct flow_id packet_to_flow_id(struct sniff_ip* ip_info) {
