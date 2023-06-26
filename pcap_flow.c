@@ -1,6 +1,6 @@
 #include "resources/ansi_codes.h"
 #include "resources/protocols.h"
-#include "resources/iglesias_features.h"
+#include "resources/features.h"
 
 struct flow_id {
   struct timeval start;
@@ -16,6 +16,7 @@ struct flow_id {
 
 struct flow_data {
   long count;
+  long bytes;
 };
 
 struct flow_node {
@@ -42,11 +43,17 @@ struct flow_node* flow_lookup(struct flow_node* flowlist, struct flow_id id) {
   else return flow_lookup(flowlist->next, id);
 }
 
+void init_flow_data(struct flow_node* flownode) {
+  flownode->data.count = 0;
+  flownode->data.bytes = 0;
+}
+
 struct flow_node* flow_insert(struct flow_node* flowlist, struct flow_id id) {
   struct flow_node* new_node = calloc(1, sizeof(struct flow_node));
   new_node->id = id;
   new_node->next = flowlist;
-  new_node->data.count = 1;
+  new_node->to_track = &completeFeatureSet;
+  init_flow_data(new_node);
   return new_node;
 }
 
@@ -62,6 +69,10 @@ struct flow_node* flow_get(struct flow_node** flowlist, struct flow_id id) {
 }
 
 void update_flow_data(struct flow_node* flownode, struct sniff_ip* ip) {
+  features* track = flownode->to_track;
+
+  if (*track & FEAT_COUNT) flownode->data.count += 1;
+  if (*track & FEAT_BYTES) flownode->data.bytes += ip->ip_len;
   return;
 }
 
@@ -82,6 +93,7 @@ struct flow_id packet_to_flow_id(struct sniff_ip* ip_info) {
 #define PRINT_FLOW_DSTPORT 32
 #define PRINT_FLOW_PORTS 48
 #define PRINT_FLOW_COUNT 64
+#define PRINT_FLOW_BYTES 128
 
 void log_flows(FILE* fd, struct flow_node* flowlist, int options) {
   int num_flows = 0;
@@ -92,6 +104,7 @@ void log_flows(FILE* fd, struct flow_node* flowlist, int options) {
   if (options & PRINT_FLOW_DSTIP) fprintf(fd, "%-16s  ", "Dest IP");
   if (options & PRINT_FLOW_PROT) fprintf(fd, "%-8s  ", "Protocol");
   if (options & PRINT_FLOW_COUNT) fprintf(fd, "%-7s  ", "# Pkts");
+  if (options & PRINT_FLOW_BYTES) fprintf(fd, "%-5s  ", "Bytes");
   fprintf(fd, "\n");
 
   while (flowlist != NULL) {
@@ -112,6 +125,10 @@ void log_flows(FILE* fd, struct flow_node* flowlist, int options) {
 
     if (options & PRINT_FLOW_COUNT) {
       fprintf(fd, "%-7ld  ", flowlist->data.count);
+    }
+
+    if (options & PRINT_FLOW_BYTES) {
+      fprintf(fd, "%.1e  ", (double)flowlist->data.bytes);
     }
 
     fprintf(fd, "\n");

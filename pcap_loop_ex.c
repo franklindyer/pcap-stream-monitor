@@ -31,7 +31,7 @@ void my_callback(u_char *useless,
   struct flow_id id = packet_to_flow_id(ip);
   struct flow_node *node = flow_get(&flowlist, id);
   update_flow_data(node, ip);
-  log_flows(stdout, flowlist, OVERWRITE_FLOWS | PRINT_FLOW_IPS | PRINT_FLOW_PROT | PRINT_FLOW_COUNT);
+  log_flows(stdout, flowlist, OVERWRITE_FLOWS | PRINT_FLOW_IPS | PRINT_FLOW_PROT | PRINT_FLOW_COUNT | PRINT_FLOW_BYTES);
 
   count++;
 }
