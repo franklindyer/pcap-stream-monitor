@@ -13,12 +13,13 @@
 #include "resources/pcap_structs.h"
 #include "pcap_flow.c"
 
+static struct flow_manager* flow_mgr;
+
 void my_callback(u_char *useless,
 		 const struct pcap_pkthdr* pkthdrn,
 		 const u_char* packet) {
   static int count = 1;
   static char ipaddr_str[INET_ADDR_BUFLEN];
-  static struct flow_node* flowlist;
   
   /*
   const struct sniff_ip *ip;
@@ -29,9 +30,9 @@ void my_callback(u_char *useless,
   struct sniff_ip *ip;
   ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
   struct flow_id id = packet_to_flow_id(ip);
-  struct flow_node *node = flow_get(&flowlist, id);
+  struct flow_node *node = lookup_create_alive(flow_mgr, id);
   update_flow_data(node, ip);
-  log_flows(stdout, flowlist, OVERWRITE_FLOWS | PRINT_FLOW_IPS | PRINT_FLOW_PROT | PRINT_FLOW_COUNT | PRINT_FLOW_BYTES);
+  log_flows(stdout, flow_mgr->alive_head, OVERWRITE_FLOWS | PRINT_FLOW_IPS | PRINT_FLOW_PROT | PRINT_FLOW_COUNT | PRINT_FLOW_BYTES);
 
   count++;
 }
@@ -72,7 +73,9 @@ int main() {
     printf("Error applying filter\n");
     exit(1);
   }
-  
+ 
+ 
+  flow_mgr = new_flow_manager(10);
   pcap_loop(descr, -1, my_callback, NULL);
   
   return 0;

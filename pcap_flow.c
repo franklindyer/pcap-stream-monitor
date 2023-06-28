@@ -1,11 +1,11 @@
+#include <time.h>
 #include "resources/ansi_codes.h"
 #include "resources/protocols.h"
 #include "resources/features.h"
 
 struct flow_id {
-  struct timeval start;
-  struct timeval recent;
-  struct timeval count;
+  time_t start;
+  time_t recent;
 
   struct in_addr ip_src;
   struct in_addr ip_dst;
@@ -26,6 +26,29 @@ struct flow_node {
   struct flow_node* next;
 };
 
+struct flow_manager {
+  double cutoff;
+  struct flow_node* alive_head;
+  struct flow_node* dead_head;
+};
+
+struct flow_manager* new_flow_manager(double cutoff) {
+  struct flow_manager* mgr = calloc(1, sizeof(struct flow_manager));
+  mgr->cutoff = cutoff;
+  mgr->alive_head = NULL;
+  mgr->dead_head = NULL;
+  return mgr;
+}
+
+void mark_stream_dead(struct flow_manager* mgr,
+                                     struct flow_node* prevnode, 
+                                     struct flow_node* node) {
+  if (mgr->alive_head == node) mgr->alive_head = node->next;
+  else prevnode->next = node->next;
+  node->next = mgr->dead_head;
+  mgr->dead_head = node;
+}
+
 /* At the moment, this function has no notion of
    cutting off flows at a certain time.          */
 int compare_flows(struct flow_id fl1, struct flow_id fl2) {
@@ -37,10 +60,21 @@ int compare_flows(struct flow_id fl1, struct flow_id fl2) {
   else return 1;
 }
 
-struct flow_node* flow_lookup(struct flow_node* flowlist, struct flow_id id) {
-  if (flowlist == NULL) return NULL;
-  else if (compare_flows(id, flowlist->id)) return flowlist;
-  else return flow_lookup(flowlist->next, id);
+struct flow_node* lookup_alive(struct flow_manager* mgr, struct flow_id fl) {
+  struct flow_node* prev = NULL;
+  struct flow_node* current = mgr->alive_head;
+  while (current != NULL) {
+    if (compare_flows(fl, current->id)) {
+      if (difftime(time(NULL), current->id.recent) > mgr->cutoff) {
+        mark_stream_dead(mgr, prev, current);
+        return NULL;
+      }
+      return current;
+    }
+    prev = current;
+    current = current->next;
+  }
+  return NULL;
 }
 
 void init_flow_data(struct flow_node* flownode) {
@@ -48,24 +82,24 @@ void init_flow_data(struct flow_node* flownode) {
   flownode->data.bytes = 0;
 }
 
-struct flow_node* flow_insert(struct flow_node* flowlist, struct flow_id id) {
-  struct flow_node* new_node = calloc(1, sizeof(struct flow_node));
-  new_node->id = id;
-  new_node->next = flowlist;
-  new_node->to_track = &completeFeatureSet;
-  init_flow_data(new_node);
-  return new_node;
+void add_new_flow(struct flow_manager* mgr, struct flow_id id) {
+  struct flow_node* node = calloc(1, sizeof(struct flow_node));
+  node->id = id;
+  node->to_track = &completeFeatureSet;
+  init_flow_data(node);
+
+  node->next = mgr->alive_head;
+  mgr->alive_head = node;
 }
 
-struct flow_node* flow_get(struct flow_node** flowlist, struct flow_id id) {
-  struct flow_node* flow_loc = flow_lookup(*flowlist, id);
-  if (flow_loc == NULL) {
-    *flowlist = flow_insert(*flowlist, id);
-    flow_loc = *flowlist;
-  } else {
-    flow_loc->data.count += 1;
+struct flow_node* lookup_create_alive(struct flow_manager* mgr,
+                                      struct flow_id id) {
+  struct flow_node* result = lookup_alive(mgr, id);
+  if (result == NULL) {
+    add_new_flow(mgr, id);
+    result = mgr->alive_head;
   }
-  return flow_loc;
+  return result;
 }
 
 void update_flow_data(struct flow_node* flownode, struct sniff_ip* ip) {
@@ -81,6 +115,8 @@ struct flow_id packet_to_flow_id(struct sniff_ip* ip_info) {
   id.ip_src = ip_info->ip_src;
   id.ip_dst = ip_info->ip_dst;
   id.ip_prot = ip_info->ip_p;
+  id.start = time(NULL);
+  id.recent = id.start;
   return id;
 }
 
