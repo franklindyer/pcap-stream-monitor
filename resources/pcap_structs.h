@@ -1,5 +1,6 @@
 /* Ethernet addresses are 6 bytes */
 // #define ETHER_ADDR_LEN	6
+#define SIZE_ETHERNET 14
 
 /* Ethernet header */
 struct sniff_ethernet {
@@ -59,3 +60,15 @@ struct sniff_icmp {
   uint8_t icmp_code;
   uint16_t icmp_cksum;
 };
+
+const struct sniff_ip* cast_packet_ip(const u_char* packet) {
+  const struct sniff_ip* ip;
+  ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
+  return ip;
+}
+
+const struct sniff_tcp* cast_packet_tcp(const u_char* packet) {
+  const struct sniff_ip* ip = cast_packet_ip(packet);
+  const struct sniff_tcp* tcp = (struct sniff_tcp*)(packet + SIZE_ETHERNET + IP_HL(ip)*4);
+  return tcp;
+}

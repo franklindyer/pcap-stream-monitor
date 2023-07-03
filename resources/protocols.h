@@ -1,3 +1,7 @@
+#define ICMP_PROTNUM 1
+#define TCP_PROTNUM 6
+#define UDP_PROTNUM 17
+
 const char* getIPProtoName(int pnum) {
   if      (pnum == 0)   return "HOPOPT";
   else if (pnum == 1)   return "ICMP";

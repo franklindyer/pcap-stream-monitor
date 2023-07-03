@@ -2,10 +2,12 @@
 #include "resources/ansi_codes.h"
 #include "resources/protocols.h"
 #include "resources/features.h"
+#include "resources/flow_time.h"
+#include "resources/pcap_structs.h"
 
 struct flow_id {
-  time_t start;
-  time_t recent;
+  struct timespec start;
+  struct timespec recent;
 
   struct in_addr ip_src;
   struct in_addr ip_dst;
@@ -14,7 +16,10 @@ struct flow_id {
   u_short dst_port;
 };
 
+#define FLOWBOOL_ISFINISHED 1 << 0
+
 struct flow_data {
+  short booldat;
   long count;
   long bytes;
 };
@@ -27,7 +32,7 @@ struct flow_node {
 };
 
 struct flow_manager {
-  double cutoff;
+  float cutoff;                         /* Cutoff point in milliseconds */
   struct flow_node* alive_head;
   struct flow_node* dead_head;
 };
@@ -49,14 +54,12 @@ void mark_stream_dead(struct flow_manager* mgr,
   mgr->dead_head = node;
 }
 
-/* At the moment, this function has no notion of
-   cutting off flows at a certain time.          */
 int compare_flows(struct flow_id fl1, struct flow_id fl2) {
   if (fl1.ip_src.s_addr != fl2.ip_src.s_addr) return 0;
   else if (fl1.ip_dst.s_addr != fl2.ip_dst.s_addr) return 0;
   else if (fl1.ip_prot ^ fl2.ip_prot) return 0;
-  //  else if (fl1.src_port ^ fl2.src_port) return 0;
-  //  else if (fl1.dst_port ^ fl2.dst_port) return 0;
+  else if (fl1.src_port ^ fl2.src_port) return 0;
+  else if (fl1.dst_port ^ fl2.dst_port) return 0;
   else return 1;
 }
 
@@ -65,7 +68,7 @@ struct flow_node* lookup_alive(struct flow_manager* mgr, struct flow_id fl) {
   struct flow_node* current = mgr->alive_head;
   while (current != NULL) {
     if (compare_flows(fl, current->id)) {
-      if (difftime(time(NULL), current->id.recent) > mgr->cutoff) {
+      if (timespec_diff(timespec_now(), current->id.recent) > mgr->cutoff) {
         mark_stream_dead(mgr, prev, current);
         return NULL;
       }
@@ -102,21 +105,35 @@ struct flow_node* lookup_create_alive(struct flow_manager* mgr,
   return result;
 }
 
-void update_flow_data(struct flow_node* flownode, struct sniff_ip* ip) {
-  features* track = flownode->to_track;
+void update_flow_data(struct flow_node* flownode, const u_char* pkt) {
+  const struct sniff_ip* ip = cast_packet_ip(pkt);
 
+  timespec_get(&(flownode->id.recent), TIME_UTC);
+
+  features* track = flownode->to_track;
   if (*track & FEAT_COUNT) flownode->data.count += 1;
   if (*track & FEAT_BYTES) flownode->data.bytes += ip->ip_len;
   return;
 }
 
-struct flow_id packet_to_flow_id(struct sniff_ip* ip_info) {
+struct flow_id packet_to_flow_id(const u_char* packet) {
+  const struct sniff_ip *ip_info = cast_packet_ip(packet);
+
   struct flow_id id;
   id.ip_src = ip_info->ip_src;
   id.ip_dst = ip_info->ip_dst;
   id.ip_prot = ip_info->ip_p;
-  id.start = time(NULL);
-  id.recent = id.start;
+
+  id.src_port = 0;
+  id.dst_port = 0;
+  if (id.ip_prot == TCP_PROTNUM) {
+    const struct sniff_tcp* tcp_info = cast_packet_tcp(packet);
+    id.src_port = ntohs(tcp_info->th_sport);
+    id.dst_port = ntohs(tcp_info->th_dport);
+  }
+
+  timespec_get(&(id.start), TIME_UTC);
+  timespec_get(&(id.recent), TIME_UTC);
   return id;
 }
 
@@ -132,6 +149,7 @@ struct flow_id packet_to_flow_id(struct sniff_ip* ip_info) {
 #define PRINT_FLOW_START        1 << 7
 #define PRINT_FLOW_END          1 << 8
 #define PRINT_FLOW_DURATION     1 << 9
+#define PRINT_FLOWBOOL_SHIFT    10
 
 #define OVERWRITE_FLOWS         1 << 31
 
@@ -145,24 +163,18 @@ const char* optnames[] = {
   "bytes",
   "start",
   "end",
-  "dur"
+  "dur",
+  "isdone"
 };
 
-void print_flows(FILE* fd, 
-                 struct flow_node* flowlist, 
-                 int options, 
-                 const char* tformat[], 
-                 const char* dformat[]) {
-  int num_flows = 0;
+void print_flowcols(FILE* fd,
+                    long options,
+                    const char* tformat[]) {
   int col;
-  char ipaddr_str[INET_ADDR_BUFLEN];
-
-  if (options & OVERWRITE_FLOWS) {
-    if (fseek(fd, 0, SEEK_SET) < 0) perror("Could not move to beginning of logfile.");
-  }  
-
   int i;
-  col = 0;
+  
+  if (fseek(fd, 0, SEEK_SET) < 0) perror("Could not move to beginning of logfile.");
+
   for (i = 0; i < 31; i++) {
     if (options & (1 << i)) {
       fprintf(fd, tformat[col], optnames[i]);
@@ -170,6 +182,19 @@ void print_flows(FILE* fd,
     }
   }
   fprintf(fd, "\n");
+}
+
+void print_flows(FILE* fd, 
+                 struct flow_node* flowlist, 
+                 long options, 
+                 const char* dformat[]) {
+  int num_flows = 0;
+  int col;
+  char ipaddr_str[INET_ADDR_BUFLEN];
+  
+  if (options & OVERWRITE_FLOWS) {
+    if (fseek(fd, 0, SEEK_SET) < 0) perror("Could not move to beginning of logfile.");
+  }  
 
   while (flowlist != NULL) {
     col = 0;
@@ -191,6 +216,16 @@ void print_flows(FILE* fd,
       col++;
     }
 
+    if (options & PRINT_FLOW_SRCPORT) {
+      fprintf(fd, dformat[col], (int)(flowlist->id.src_port));
+      col++;
+    }
+
+    if (options & PRINT_FLOW_DSTPORT) {
+      fprintf(fd, dformat[col], (int)(flowlist->id.dst_port));
+      col++;
+    }
+
     if (options & PRINT_FLOW_COUNT) {
       fprintf(fd, dformat[col], flowlist->data.count);
       col++;
@@ -199,6 +234,21 @@ void print_flows(FILE* fd,
     if (options & PRINT_FLOW_BYTES) {
       fprintf(fd, dformat[col], (double)flowlist->data.bytes);
       col++;
+    }
+
+    if (options & PRINT_FLOW_DURATION) {
+      fprintf(fd, dformat[col], timespec_diff(flowlist->id.recent, flowlist->id.start));
+      col++;
+    }
+
+    int i;
+    int shift;
+    for (i = 0; i < 16; i++) {
+      shift = i + PRINT_FLOWBOOL_SHIFT;
+      if (options & (1 << shift)) {
+        fprintf(fd, dformat[col], (flowlist->data.booldat >> shift) & 1);
+        col++;
+      }
     }
 
     fprintf(fd, "\n");

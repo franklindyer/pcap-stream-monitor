@@ -7,10 +7,8 @@
 #include <arpa/inet.h>
 #include <netinet/if_ether.h>
 
-#define SIZE_ETHERNET 14  
 #define INET_ADDR_BUFLEN 16 
 
-#include "resources/pcap_structs.h"
 #include "pcap_flow.c"
 
 static struct flow_manager* flow_mgr;
@@ -23,10 +21,12 @@ void my_callback(u_char *useless,
   static int printops = OVERWRITE_FLOWS
                         | PRINT_FLOW_IPS
                         | PRINT_FLOW_PROT
+                        | PRINT_FLOW_PORTS
                         | PRINT_FLOW_COUNT
-                        | PRINT_FLOW_BYTES;
-  static const char* ptformat[] = {"|%-16s|", "|%-16s|", "|%-8s|", "|%-7s|", "|%-8s|"};
-  static const char* pdformat[] = {"|%-16s|", "|%-16s|", "|%-8s|", "|%-7ld|", "|%-8.1e|"};
+                        | PRINT_FLOW_BYTES
+                        | PRINT_FLOW_DURATION;
+  static const char* ptformat[] = {"|%-16s|", "|%-16s|", "|%-8s|", "|%-8s|", "|%-8s|", "|%-7s|", "|%-8s|", "|%-7s|"};
+  static const char* pdformat[] = {"|%-16s|", "|%-16s|", "|%-8s|", "|%-8d|", "|%-8d|", "|%-7ld|", "|%-8.1e|", "|%-7.1e|"};
   
   /*
   const struct sniff_ip *ip;
@@ -36,10 +36,11 @@ void my_callback(u_char *useless,
 
   struct sniff_ip *ip;
   ip = (struct sniff_ip*)(packet + SIZE_ETHERNET);
-  struct flow_id id = packet_to_flow_id(ip);
+  struct flow_id id = packet_to_flow_id(packet);
   struct flow_node *node = lookup_create_alive(flow_mgr, id);
-  update_flow_data(node, ip);
-  print_flows(stdout, flow_mgr->alive_head, printops, ptformat, pdformat);
+  update_flow_data(node, packet);
+  print_flowcols(stdout, printops, ptformat);
+  print_flows(stdout, flow_mgr->alive_head, printops, pdformat);
 
   count++;
 }
@@ -82,7 +83,7 @@ int main() {
   }
  
  
-  flow_mgr = new_flow_manager(10);
+  flow_mgr = new_flow_manager(10000000);
   pcap_loop(descr, -1, my_callback, NULL);
   
   return 0;
