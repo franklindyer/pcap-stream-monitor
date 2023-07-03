@@ -120,51 +120,85 @@ struct flow_id packet_to_flow_id(struct sniff_ip* ip_info) {
   return id;
 }
 
-#define OVERWRITE_FLOWS 1
-#define PRINT_FLOW_SRCIP 2
-#define PRINT_FLOW_DSTIP 4
-#define PRINT_FLOW_IPS 6
-#define PRINT_FLOW_PROT 8
-#define PRINT_FLOW_SRCPORT 16
-#define PRINT_FLOW_DSTPORT 32
-#define PRINT_FLOW_PORTS 48
-#define PRINT_FLOW_COUNT 64
-#define PRINT_FLOW_BYTES 128
+#define PRINT_FLOW_SRCIP        1 << 0
+#define PRINT_FLOW_DSTIP        1 << 1
+#define PRINT_FLOW_IPS          ((1 << 0) ^ (1 << 1))
+#define PRINT_FLOW_PROT         1 << 2
+#define PRINT_FLOW_SRCPORT      1 << 3
+#define PRINT_FLOW_DSTPORT      1 << 4
+#define PRINT_FLOW_PORTS        ((1 << 3) ^ (1 << 4))
+#define PRINT_FLOW_COUNT        1 << 5
+#define PRINT_FLOW_BYTES        1 << 6
+#define PRINT_FLOW_START        1 << 7
+#define PRINT_FLOW_END          1 << 8
+#define PRINT_FLOW_DURATION     1 << 9
 
-void log_flows(FILE* fd, struct flow_node* flowlist, int options) {
+#define OVERWRITE_FLOWS         1 << 31
+
+const char* optnames[] = {
+  "srcip",
+  "dstip",
+  "prot",
+  "srcport",
+  "dstport",
+  "count",
+  "bytes",
+  "start",
+  "end",
+  "dur"
+};
+
+void print_flows(FILE* fd, 
+                 struct flow_node* flowlist, 
+                 int options, 
+                 const char* tformat[], 
+                 const char* dformat[]) {
   int num_flows = 0;
+  int col;
   char ipaddr_str[INET_ADDR_BUFLEN];
 
-  if (fseek(fd, 0, SEEK_SET) < 0) perror("Could not move to beginning of logfile.");
-  if (options & PRINT_FLOW_SRCIP) fprintf(fd, "%-16s  ", "Source IP");
-  if (options & PRINT_FLOW_DSTIP) fprintf(fd, "%-16s  ", "Dest IP");
-  if (options & PRINT_FLOW_PROT) fprintf(fd, "%-8s  ", "Protocol");
-  if (options & PRINT_FLOW_COUNT) fprintf(fd, "%-7s  ", "# Pkts");
-  if (options & PRINT_FLOW_BYTES) fprintf(fd, "%-5s  ", "Bytes");
+  if (options & OVERWRITE_FLOWS) {
+    if (fseek(fd, 0, SEEK_SET) < 0) perror("Could not move to beginning of logfile.");
+  }  
+
+  int i;
+  col = 0;
+  for (i = 0; i < 31; i++) {
+    if (options & (1 << i)) {
+      fprintf(fd, tformat[col], optnames[i]);
+      col++;
+    }
+  }
   fprintf(fd, "\n");
 
   while (flowlist != NULL) {
+    col = 0;
     num_flows++;
     if (options & PRINT_FLOW_SRCIP) {
       inet_ntop(AF_INET, &(flowlist->id.ip_src), ipaddr_str, INET_ADDR_BUFLEN);
-      fprintf(fd, "%-16s  ", ipaddr_str);
+      fprintf(fd, dformat[col], ipaddr_str);
+      col++;
     }
 
     if (options & PRINT_FLOW_DSTIP) {
       inet_ntop(AF_INET, &(flowlist->id.ip_dst), ipaddr_str, INET_ADDR_BUFLEN);
-      fprintf(fd, "%-16s  ", ipaddr_str);
+      fprintf(fd, dformat[col], ipaddr_str);
+      col++;
     }
 
     if (options & PRINT_FLOW_PROT) {
-      fprintf(fd, "%-8s  ", getIPProtoName(flowlist->id.ip_prot));
+      fprintf(fd, dformat[col], getIPProtoName(flowlist->id.ip_prot));
+      col++;
     }
 
     if (options & PRINT_FLOW_COUNT) {
-      fprintf(fd, "%-7ld  ", flowlist->data.count);
+      fprintf(fd, dformat[col], flowlist->data.count);
+      col++;
     }
 
     if (options & PRINT_FLOW_BYTES) {
-      fprintf(fd, "%.1e  ", (double)flowlist->data.bytes);
+      fprintf(fd, dformat[col], (double)flowlist->data.bytes);
+      col++;
     }
 
     fprintf(fd, "\n");

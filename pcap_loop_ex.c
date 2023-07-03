@@ -20,6 +20,13 @@ void my_callback(u_char *useless,
 		 const u_char* packet) {
   static int count = 1;
   static char ipaddr_str[INET_ADDR_BUFLEN];
+  static int printops = OVERWRITE_FLOWS
+                        | PRINT_FLOW_IPS
+                        | PRINT_FLOW_PROT
+                        | PRINT_FLOW_COUNT
+                        | PRINT_FLOW_BYTES;
+  static const char* ptformat[] = {"|%-16s|", "|%-16s|", "|%-8s|", "|%-7s|", "|%-8s|"};
+  static const char* pdformat[] = {"|%-16s|", "|%-16s|", "|%-8s|", "|%-7ld|", "|%-8.1e|"};
   
   /*
   const struct sniff_ip *ip;
@@ -32,7 +39,7 @@ void my_callback(u_char *useless,
   struct flow_id id = packet_to_flow_id(ip);
   struct flow_node *node = lookup_create_alive(flow_mgr, id);
   update_flow_data(node, ip);
-  log_flows(stdout, flow_mgr->alive_head, OVERWRITE_FLOWS | PRINT_FLOW_IPS | PRINT_FLOW_PROT | PRINT_FLOW_COUNT | PRINT_FLOW_BYTES);
+  print_flows(stdout, flow_mgr->alive_head, printops, ptformat, pdformat);
 
   count++;
 }
