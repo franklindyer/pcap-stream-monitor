@@ -53,6 +53,14 @@ struct sniff_tcp {
 	u_short th_urp;		/* urgent pointer */
 };
 
+/* UDP header */
+struct sniff_udp {
+        u_short uh_sport;
+        u_short uh_dport;
+        u_short uh_len;
+        u_short uh_sum;      
+};
+
 #define ICMP_HL 4
 
 struct sniff_icmp {
@@ -71,4 +79,10 @@ const struct sniff_tcp* cast_packet_tcp(const u_char* packet) {
   const struct sniff_ip* ip = cast_packet_ip(packet);
   const struct sniff_tcp* tcp = (struct sniff_tcp*)(packet + SIZE_ETHERNET + IP_HL(ip)*4);
   return tcp;
+}
+
+const struct sniff_udp* cast_packet_udp(const u_char* packet) {
+  const struct sniff_ip* ip = cast_packet_ip(packet);
+  const struct sniff_udp* udp = (struct sniff_udp*)(packet + SIZE_ETHERNET + IP_HL(ip)*4);
+  return udp;
 }

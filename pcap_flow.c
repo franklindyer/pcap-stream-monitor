@@ -130,6 +130,10 @@ struct flow_id packet_to_flow_id(const u_char* packet) {
     const struct sniff_tcp* tcp_info = cast_packet_tcp(packet);
     id.src_port = ntohs(tcp_info->th_sport);
     id.dst_port = ntohs(tcp_info->th_dport);
+  } else if (id.ip_prot == UDP_PROTNUM) {
+    const struct sniff_udp* udp_info = cast_packet_udp(packet);
+    id.src_port = ntohs(udp_info->uh_sport);
+    id.dst_port = ntohs(udp_info->uh_dport);
   }
 
   timespec_get(&(id.start), TIME_UTC);
