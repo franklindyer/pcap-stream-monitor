@@ -72,6 +72,7 @@ int main() {
   signal(SIGINT, finalize_tracker);
 
   char *dev;
+  pcap_if_t* devptr;
   char errbuf[PCAP_ERRBUF_SIZE];
   pcap_t *descr;
   const u_char *packet;
@@ -81,13 +82,13 @@ int main() {
   bpf_u_int32 maskp;
   bpf_u_int32 netp;
 
-  dev = pcap_lookupdev(errbuf);
-  if (dev == NULL) {
+  // dev = pcap_lookupdev(errbuf);
+  if (pcap_findalldevs(&devptr, errbuf) < 0 || devptr == NULL) {
     fprintf(stderr, "%s\n", errbuf);
     exit(1);
-  } else {
-    printf("Opening %s in promiscuous mode\n", dev);
   }
+  dev = devptr->name;
+  printf("Opening %s in promiscuous mode\n", dev);
 
   pcap_lookupnet(dev, &netp, &maskp, errbuf);
 
