@@ -1,4 +1,5 @@
 #include <time.h>
+#include <unistd.h>
 #include "resources/ansi_codes.h"
 #include "resources/protocols.h"
 #include "resources/features.h"
@@ -46,8 +47,8 @@ struct flow_manager* new_flow_manager(double cutoff) {
 }
 
 void mark_stream_dead(struct flow_manager* mgr,
-                                     struct flow_node* prevnode, 
-                                     struct flow_node* node) {
+                      struct flow_node* prevnode, 
+                      struct flow_node* node) {
   if (mgr->alive_head == node) mgr->alive_head = node->next;
   else prevnode->next = node->next;
   node->next = mgr->dead_head;
@@ -174,8 +175,8 @@ const char* optnames[] = {
 void print_flowcols(FILE* fd,
                     long options,
                     const char* tformat[]) {
-  int col;
-  int i;
+  int col = 0;
+  int i = 0;
   
   if (fseek(fd, 0, SEEK_SET) < 0) perror("Could not move to beginning of logfile.");
 
@@ -193,7 +194,7 @@ void print_flows(FILE* fd,
                  long options, 
                  const char* dformat[]) {
   int num_flows = 0;
-  int col;
+  int col = 0;
   char ipaddr_str[INET_ADDR_BUFLEN];
   
   if (options & OVERWRITE_FLOWS) {
@@ -261,3 +262,13 @@ void print_flows(FILE* fd,
 
 }
 
+void flush_deadflows(FILE* fd, 
+                     struct flow_manager* mgr, 
+                     long options, 
+                     const char* dformat[]) {
+    struct flow_node* deadhead = mgr->dead_head;
+    mgr->dead_head = NULL;
+    if (fork() == 0) {
+        print_flows(fd, deadhead, options, dformat);
+    }
+}
